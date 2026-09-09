@@ -1,0 +1,36 @@
+[
+  {
+    "page": 0,
+    "rect": [0.28, 0.80, 0.44, 0.08],
+    "action": "goToPage",
+    "targetPage": 1,
+    "label": "Start reading"
+  },
+  {
+    "page": 1,
+    "rect": [0.10, 0.18, 0.42, 0.22],
+    "action": "video",
+    "url": "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4",
+    "title": "Quick start"
+  },
+  {
+    "page": 1,
+    "rect": [0.56, 0.22, 0.36, 0.42],
+    "action": "popup",
+    "title": "Contents",
+    "body": "Six chapters covering create, personalize, interactivity, animation, sharing and everything else."
+  },
+  {
+    "page": 2,
+    "rect": [0.20, 0.45, 0.60, 0.10],
+    "action": "openUrl",
+    "url": "https://fliphtml5.com",
+    "title": "Open the website"
+  },
+  {
+    "page": 3,
+    "rect": [0.30, 0.60, 0.40, 0.09],
+    "action": "tooltip",
+    "label": "170+ customization options"
+  }
+]
