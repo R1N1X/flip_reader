@@ -487,22 +487,30 @@ class ReaderShell extends StatelessWidget {
     final n = c.book.pageCount;
     final result = await showDialog<int>(
       context: context,
+      // In landscape the keyboard leaves roughly 100dp, so the dialog is one
+      // field: the title is its label, submit is the arrow or the keyboard's Go
+      // key, and cancel is back or a tap outside. A title and a button row
+      // cannot fit in that height and push the field out of view.
       builder: (ctx) => AlertDialog(
-        title: const Text('Go to page'),
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+        contentPadding: const EdgeInsets.fromLTRB(20, 12, 8, 12),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: InputDecoration(hintText: '1 - $n'),
+          textInputAction: TextInputAction.go,
+          decoration: InputDecoration(
+            labelText: 'Go to page',
+            hintText: '1 - $n',
+            suffixIcon: IconButton(
+              tooltip: 'Go',
+              icon: const Icon(Icons.arrow_forward),
+              onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text)),
+            ),
+          ),
           onSubmitted: (_) => Navigator.pop(ctx, int.tryParse(ctrl.text)),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text)),
-            child: const Text('Go'),
-          ),
-        ],
       ),
     );
     if (result != null && result >= 1 && result <= n) {
