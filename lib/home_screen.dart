@@ -1,131 +1,50 @@
 import 'dart:ui' as ui;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import 'library.dart';
 import 'pdf_pipeline.dart';
+import 'reader_controller.dart';
+import 'reader_settings.dart';
 import 'reader_shell.dart';
 
 /// Landing screen: read the bundled sample, or open your own PDF.
 ///
 /// The reader is opened on a document rather than started empty, so the choice
-/// has to happen before it, not inside it.
-class HomeScreen extends StatefulWidget {
+/// has to happen before it, not inside it. State lives in [Library].
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  bool _busy = false;
-  String? _error;
-
-  ui.Image? _sampleCover;
-
-  /// Cover and name of the last PDF opened this session, so the second card
-  /// shows what it will reopen rather than an empty tile.
-  ui.Image? _recentCover;
-  String? _recentPath;
-  String? _recentName;
-
-  @override
-  void initState() {
-    super.initState();
-    renderPdfCover(assetPath: 'assets/book.pdf').then((cover) {
-      if (mounted) {
-        setState(() => _sampleCover = cover);
-      } else {
-        cover?.dispose();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _sampleCover?.dispose();
-    _recentCover?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _openSample() =>
-      _open((book) => book.open('assets/book.pdf'), hotspots: 'assets/hotspots.json');
-
-  Future<void> _openOwn() => _open((book) async {
-        final picked = await FilePicker.pickFile(
-          type: FileType.custom,
-          allowedExtensions: const ['pdf'],
-        );
-        // A cancelled picker is not a failure, it just means nothing to open.
-        final path = picked?.path;
-        if (path == null) throw const _Cancelled();
-        await book.openFile(path);
-        _rememberRecent(path, picked!.name);
-      });
-
-  /// Reopens the last picked PDF without going through the file browser again.
-  Future<void> _openRecent() {
-    final path = _recentPath!;
-    return _open((book) => book.openFile(path));
-  }
-
-  void _rememberRecent(String path, String name) {
-    _recentPath = path;
-    _recentName = name;
-    renderPdfCover(filePath: path).then((cover) {
-      if (!mounted) {
-        cover?.dispose();
-        return;
-      }
-      setState(() {
-        _recentCover?.dispose();
-        _recentCover = cover;
-      });
-    });
-  }
-
-  /// Opens a document and pushes the reader onto it.
-  ///
-  /// The book is created here and disposed when the reader is popped, so
-  /// returning to this screen genuinely releases the previous document's pages
-  /// rather than leaving them cached for a book nobody is reading.
-  Future<void> _open(
-    Future<void> Function(PdfBook) opener, {
-    String? hotspots,
-  }) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    final book = PdfBook();
-    try {
-      await opener(book);
-      if (!mounted) {
-        book.dispose();
-        return;
-      }
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => Scaffold(
-            backgroundColor: const Color(0xFF10131A),
-            body: ReaderShell(book: book, hotspotsAsset: hotspots),
-          ),
+  /// Pushes the reader with its book, settings and controller provided for the
+  /// lifetime of the route. Settings are per reader, since bookmarks belong to
+  /// one document. The book is owned by [Library], so it is passed by value
+  /// and not disposed here.
+  static ShowReader _reader(BuildContext context) => (book, hotspots) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider<PdfBook>.value(value: book),
+            ChangeNotifierProvider(create: (_) => ReaderSettings()),
+            ChangeNotifierProvider(
+              create: (ctx) => ReaderController(
+                book: book,
+                settings: ctx.read<ReaderSettings>(),
+                hotspotsAsset: hotspots,
+              ),
+            ),
+          ],
+          child: const Scaffold(backgroundColor: Color(0xFF10131A), body: ReaderShell()),
         ),
-      );
-    } on _Cancelled {
-      // Nothing chosen, stay here quietly.
-    } catch (_) {
-      if (mounted) setState(() => _error = 'That file could not be opened as a PDF.');
-    } finally {
-      book.dispose();
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+      ),
+    );
+  };
 
   @override
   Widget build(BuildContext context) {
+    final library = context.watch<Library>();
+    final show = _reader(context);
     return Scaffold(
       body: DecoratedBox(
         decoration: const BoxDecoration(
@@ -165,9 +84,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'Open the sample',
                       subtitle: 'The bundled brochure, with interactive elements already placed.',
                       accent: const Color(0xFF4FA3FF),
-                      enabled: !_busy,
-                      cover: _sampleCover,
-                      onTap: _openSample,
+                      enabled: !library.busy,
+                      cover: library.sampleCover,
+                      onTap: () => library.openSample(show),
                     ),
                     const SizedBox(height: 14),
                     _Choice(
@@ -175,10 +94,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'Open your own PDF',
                       subtitle: 'Pick any PDF from this device. Everything is customizable.',
                       accent: const Color(0xFF3DD6A0),
-                      enabled: !_busy,
-                      onTap: _openOwn,
+                      enabled: !library.busy,
+                      onTap: () => library.openOwn(show),
                     ),
-                    if (_recentPath != null) ...[
+                    if (library.recentPath != null) ...[
                       const SizedBox(height: 22),
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -197,19 +116,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       _Choice(
                         icon: Icons.history,
-                        title: _recentName ?? 'Last document',
+                        title: library.recentName ?? 'Last document',
                         subtitle: 'Open again',
                         accent: const Color(0xFFF2A65A),
-                        enabled: !_busy,
-                        cover: _recentCover,
-                        onTap: _openRecent,
+                        enabled: !library.busy,
+                        cover: library.recentCover,
+                        onTap: () => library.openRecent(show),
                       ),
                     ],
-                    if (_error != null)
+                    if (library.error != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 18),
                         child: Text(
-                          _error!,
+                          library.error!,
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Color(0xFFFF8A80), fontSize: 13),
                         ),
@@ -223,11 +142,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-/// Signals a cancelled picker, which is not an error worth showing.
-class _Cancelled implements Exception {
-  const _Cancelled();
 }
 
 class _Choice extends StatelessWidget {

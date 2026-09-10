@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'home_screen.dart';
+import 'library.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +22,7 @@ class ReaderApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF1565C0),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: ChangeNotifierProvider(create: (_) => Library(), child: const HomeScreen()),
     );
   }
 }

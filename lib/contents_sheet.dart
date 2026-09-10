@@ -1,7 +1,9 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import 'pdf_pipeline.dart';
 import 'reader_settings.dart';
 
 /// Table of contents and bookmarks.
@@ -10,69 +12,63 @@ import 'reader_settings.dart';
 /// a thumbnail, and bookmarks are the reader's own marks on top of it. Both live
 /// in one sheet because they answer the same question: where do I jump to.
 class ContentsSheet extends StatelessWidget {
-  const ContentsSheet({
-    super.key,
-    required this.settings,
-    required this.pageCount,
-    required this.currentPage,
-    required this.thumbOf,
-    required this.onJump,
-  });
+  const ContentsSheet({super.key, required this.currentPage, required this.onJump});
 
-  final ReaderSettings settings;
-  final int pageCount;
   final int currentPage;
-  final ui.Image? Function(int page) thumbOf;
   final ValueChanged<int> onJump;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: settings,
-      builder: (context, _) => DefaultTabController(
-        length: 2,
-        child: DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (context, controller) => ColoredBox(
-            color: const Color(0xFF15181F),
-            child: Column(
-              children: [
-                const TabBar(
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white38,
-                  indicatorColor: Colors.white,
-                  tabs: [Tab(text: 'Contents'), Tab(text: 'Bookmarks')],
+    final settings = context.watch<ReaderSettings>();
+    final book = context.watch<PdfBook>();
+    final pageCount = book.pageCount;
+    final thumbOf = book.thumb;
+    return DefaultTabController(
+      length: 2,
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, controller) => ColoredBox(
+          color: const Color(0xFF15181F),
+          child: Column(
+            children: [
+              const TabBar(
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white38,
+                indicatorColor: Colors.white,
+                tabs: [
+                  Tab(text: 'Contents'),
+                  Tab(text: 'Bookmarks'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _PageGrid(
+                      pages: List.generate(pageCount, (i) => i),
+                      currentPage: currentPage,
+                      settings: settings,
+                      thumbOf: thumbOf,
+                      onJump: onJump,
+                      controller: controller,
+                      emptyMessage: 'This document has no pages.',
+                    ),
+                    _PageGrid(
+                      pages: settings.bookmarks,
+                      currentPage: currentPage,
+                      settings: settings,
+                      thumbOf: thumbOf,
+                      onJump: onJump,
+                      controller: controller,
+                      emptyMessage:
+                          'No bookmarks yet. Tap the ribbon on the toolbar to mark a page.',
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _PageGrid(
-                        pages: List.generate(pageCount, (i) => i),
-                        currentPage: currentPage,
-                        settings: settings,
-                        thumbOf: thumbOf,
-                        onJump: onJump,
-                        controller: controller,
-                        emptyMessage: 'This document has no pages.',
-                      ),
-                      _PageGrid(
-                        pages: settings.bookmarks,
-                        currentPage: currentPage,
-                        settings: settings,
-                        thumbOf: thumbOf,
-                        onJump: onJump,
-                        controller: controller,
-                        emptyMessage:
-                            'No bookmarks yet. Tap the ribbon on the toolbar to mark a page.',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -154,10 +150,7 @@ class _PageGrid extends StatelessWidget {
                       padding: EdgeInsets.only(right: 3),
                       child: Icon(Icons.bookmark, size: 11, color: Colors.white70),
                     ),
-                  Text(
-                    '${page + 1}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 11),
-                  ),
+                  Text('${page + 1}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
                 ],
               ),
             ],
